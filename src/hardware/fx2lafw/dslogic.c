@@ -31,6 +31,28 @@
 
 #define USB_TIMEOUT (3 * 1000)
 
+SR_PRIV int dslogic_set_vth(const struct sr_dev_inst *sdi, double vth)
+{
+	struct sr_usb_dev_inst *usb;
+	usb = sdi->conn;
+
+    int ret;
+    uint8_t cmd;
+
+    cmd = vth/5.0 * 255;
+    /* Send the control command. */
+    ret = libusb_control_transfer(usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR |
+            LIBUSB_ENDPOINT_OUT, DS_CMD_VTH, 0x0000, 0x0000,
+            (unsigned char *)&cmd, sizeof(cmd), 3000);
+    if (ret < 0) {
+        sr_err("Unable to send VTH command: %s.",
+               libusb_error_name(ret));
+        return SR_ERR;
+    }
+
+    return SR_OK;
+}
+
 SR_PRIV int dslogic_fpga_firmware_upload(const struct sr_dev_inst *sdi,
 		const char *name)
 {
@@ -219,13 +241,25 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 	else if (devc->dslogic_mode == DS_OP_LOOPBACK_TEST)
 		v16 = 1 << 13;
 	if (devc->dslogic_external_clock)
+		v16 |= 1 << 1 ;
+	if(devc->dslogic_clock_edge)
 		v16 |= 1 << 2;
+	if(devc->cur_samplerate == SR_MHZ(200))
+		v16 |= 1 << 5;
+	if(devc->cur_samplerate == SR_MHZ(400))
+		v16 |= 1 << 6;
+	if(devc->dslogic_filter)
+		v16 |= 1 << 8;
+	if(devc->dslogic_rle)
+		v16 |= 1 << 3;
+
 	WL16(&cfg.mode, v16);
 
 	v32 = ceil(SR_MHZ(100) * 1.0 / devc->cur_samplerate);
 	WL32(&cfg.divider, v32);
 	WL32(&cfg.count, devc->limit_samples);
 
+	WL32(&cfg.trig_pos, 50);
 	len = sizeof(struct dslogic_fpga_config);
 	ret = libusb_bulk_transfer(usb->devhdl, 2 | LIBUSB_ENDPOINT_OUT,
 			(unsigned char *)&cfg, len, &transferred, USB_TIMEOUT);

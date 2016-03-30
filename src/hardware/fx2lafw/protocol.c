@@ -78,6 +78,7 @@ static int command_get_revid_version(struct sr_dev_inst *sdi, uint8_t *revid)
 	return SR_OK;
 }
 
+
 SR_PRIV int fx2lafw_command_start_acquisition(const struct sr_dev_inst *sdi)
 {
 	struct dev_context *devc;
@@ -304,6 +305,7 @@ SR_PRIV struct dev_context *fx2lafw_dev_new(void)
 	devc->limit_samples = 0;
 	devc->capture_ratio = 0;
 	devc->sample_wide = FALSE;
+	devc->dslogic_voltage_threshold = 0;
 	devc->stl = NULL;
 
 	return devc;
