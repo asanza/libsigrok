@@ -64,8 +64,8 @@ struct dslogic_trigger_pos {
  */
 #define _DS_CFG(variable, wordcnt) ((variable << 8) | wordcnt)
 #define _DS_CFG_PAD(variable, wordcnt) ((_DS_CFG(variable, wordcnt) << 16) | 0xffff)
-#define DS_CFG_START		0xffffffff
-#define DS_CFG_MODE		_DS_CFG(0, 1)
+#define DS_CFG_START		0xf5a5f5a5
+#define DS_CFG_MODE			_DS_CFG(0, 1)
 #define DS_CFG_DIVIDER		_DS_CFG_PAD(1, 2)
 #define DS_CFG_COUNT		_DS_CFG_PAD(3, 2)
 #define DS_CFG_TRIG_POS		_DS_CFG_PAD(5, 2)
@@ -82,44 +82,53 @@ struct dslogic_trigger_pos {
 #define DS_CFG_TRIG_COUNT1	_DS_CFG_PAD(29, 16)
 #define DS_CFG_TRIG_LOGIC0	_DS_CFG_PAD(32, 16)
 #define DS_CFG_TRIG_LOGIC1	_DS_CFG_PAD(33, 16)
-#define DS_CFG_END		0x00000000
+#define DS_CFG_END			0xfa5afa5a
 
 struct dslogic_fpga_config {
 	uint32_t sync;
 	uint16_t mode_header;
 	uint16_t mode;
+	
 	uint32_t divider_header;
 	uint32_t divider;
 	uint32_t count_header;
 	uint32_t count;
+
 	uint32_t trig_pos_header;
 	uint32_t trig_pos;
 	uint16_t trig_glb_header;
 	uint16_t trig_glb;
+
 	uint32_t trig_adp_header;
 	uint32_t trig_adp;
 	uint32_t trig_sda_header;
 	uint32_t trig_sda;
+
 	uint32_t trig_mask0_header;
 	uint16_t trig_mask0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_mask1_header;
 	uint16_t trig_mask1[DS_NUM_TRIGGER_STAGES];
+	
 	uint32_t trig_value0_header;
 	uint16_t trig_value0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_value1_header;
 	uint16_t trig_value1[DS_NUM_TRIGGER_STAGES];
+	
 	uint32_t trig_edge0_header;
 	uint16_t trig_edge0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_edge1_header;
 	uint16_t trig_edge1[DS_NUM_TRIGGER_STAGES];
+	
 	uint32_t trig_count0_header;
-	uint16_t trig_count0[DS_NUM_TRIGGER_STAGES];
+	uint32_t trig_count0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_count1_header;
-	uint16_t trig_count1[DS_NUM_TRIGGER_STAGES];
+	uint32_t trig_count1[DS_NUM_TRIGGER_STAGES];
+	
 	uint32_t trig_logic0_header;
 	uint16_t trig_logic0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_logic1_header;
 	uint16_t trig_logic1[DS_NUM_TRIGGER_STAGES];
+
 	uint32_t end_sync;
 };
 

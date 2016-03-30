@@ -25,7 +25,7 @@
 #include "protocol.h"
 #include "dslogic.h"
 
-#define FW_BUFSIZE (4 * 1024)
+#define FW_BUFSIZE (1024 * 1024)
 
 #define FPGA_UPLOAD_DELAY (10 * 1000)
 
