@@ -314,7 +314,7 @@ SR_PRIV void fx2lafw_abort_acquisition(struct dev_context *devc)
 	int i;
 
 	devc->acq_aborted = TRUE;
-
+	sr_dbg("fx2lafw_abort_acquisition called");
 	for (i = devc->num_transfers - 1; i >= 0; i--) {
 		if (devc->transfers[i])
 			libusb_cancel_transfer(devc->transfers[i]);

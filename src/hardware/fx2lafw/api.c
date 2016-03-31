@@ -708,14 +708,31 @@ static int start_transfers(const struct sr_dev_inst *sdi)
 static void LIBUSB_CALL dslogic_trigger_receive(struct libusb_transfer *transfer)
 {
 	const struct sr_dev_inst *sdi;
+	struct sr_datafeed_packet packet;
 	struct dslogic_trigger_pos *tpos;
+	struct dev_context *devc;
 
 	sdi = transfer->user_data;
+	devc = sdi->priv;
 
-	if (transfer->status == LIBUSB_TRANSFER_COMPLETED
+	if(transfer->status == LIBUSB_TRANSFER_CANCELLED){
+		sr_dbg("Trigger transfer canceled.");
+		/* Terminate session. */
+		packet.type = SR_DF_END;
+		sr_session_send(sdi, &packet);
+		/* Remove fds from polling. */
+		usb_source_remove(sdi->session, devc->ctx);
+		devc->num_transfers = 0;
+		g_free(devc->transfers);
+		if (devc->stl) {
+			soft_trigger_logic_free(devc->stl);
+			devc->stl = NULL;
+		}
+	}else if (transfer->status == LIBUSB_TRANSFER_COMPLETED
 			&& transfer->actual_length == sizeof(struct dslogic_trigger_pos)) {
 		tpos = (struct dslogic_trigger_pos *)transfer->buffer;
-		sr_dbg("tpos real_pos %.8x ram_saddr %.8x", tpos->real_pos, tpos->ram_saddr);
+		sr_dbg("Triggered: tpos real_pos %.8x ram_saddr %.8x", tpos->real_pos, tpos->ram_saddr);
+
 		g_free(tpos);
 		start_transfers(sdi);
 	}
@@ -729,18 +746,11 @@ static int dslogic_trigger_request(const struct sr_dev_inst *sdi)
 	struct sr_usb_dev_inst *usb;
 	struct libusb_transfer *transfer;
 	struct dslogic_trigger_pos *tpos;
+	struct dev_context *devc;
 	int ret;
 
 	usb = sdi->conn;
-
-	if ((ret = dslogic_stop_acquisition(sdi)) != SR_OK)
-		return ret;
-
-	if ((ret = dslogic_fpga_configure(sdi)) != SR_OK)
-		return ret;
-
-	if ((ret = dslogic_start_acquisition(sdi)) != SR_OK)
-		return ret;
+	devc = sdi->priv;
 
 	sr_dbg("Getting trigger.");
 	tpos = g_malloc(sizeof(struct dslogic_trigger_pos));
@@ -754,6 +764,15 @@ static int dslogic_trigger_request(const struct sr_dev_inst *sdi)
 		g_free(tpos);
 		return SR_ERR;
 	}
+
+	devc->transfers = g_try_malloc0(sizeof(*devc->transfers));
+	if (!devc->transfers) {
+    	sr_err("USB trigger_pos transfer malloc failed.");
+    	return SR_ERR_MALLOC;
+	}
+	devc->num_transfers = 1;
+	devc->submitted_transfers = 1;
+	devc->transfers[0] = transfer;
 
 	return ret;
 }
@@ -778,6 +797,17 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi, void *cb_data)
 	devc->empty_transfer_count = 0;
 	devc->acq_aborted = FALSE;
 
+	if ((ret = dslogic_stop_acquisition(sdi)) != SR_OK){
+		fx2lafw_abort_acquisition(devc);
+		return ret;
+	}
+
+	if ((ret = dslogic_fpga_configure(sdi)) != SR_OK)
+		return ret;
+
+	if ((ret = dslogic_start_acquisition(sdi)) != SR_OK)
+		return ret;
+
 	timeout = fx2lafw_get_timeout(devc);
 	usb_source_add(sdi->session, devc->ctx, timeout, receive_data, drvc);
 
@@ -798,6 +828,7 @@ static int dev_acquisition_stop(struct sr_dev_inst *sdi, void *cb_data)
 {
 	(void)cb_data;
 
+	dslogic_stop_acquisition(sdi);
 	fx2lafw_abort_acquisition(sdi->priv);
 
 	return SR_OK;
