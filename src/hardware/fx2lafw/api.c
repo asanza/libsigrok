@@ -794,6 +794,13 @@ static void LIBUSB_CALL dslogic_trigger_receive(struct libusb_transfer *transfer
 		tpos = (struct dslogic_trigger_pos *)transfer->buffer;
 		sr_dbg("Triggered: tpos real_pos %.8x ram_saddr %.8x", tpos->real_pos, tpos->ram_saddr);
 
+		/* send trigger point */
+		if(tpos->remain_cnt < devc->limit_samples){
+			packet.type = SR_DF_TRIGGER;
+			packet.payload = tpos;
+			sr_session_send(devc->cb_data, &packet);
+		}
+
 		g_free(tpos);
 		start_transfers(sdi);
 	}
@@ -855,6 +862,8 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi, void *cb_data)
 	struct sr_dev_driver *di;
 	struct drv_context *drvc;
 	struct dev_context *devc;
+	struct sr_datafeed_packet packet;
+	struct sr_datafeed_header header;
 	int timeout, ret;
 
 	if (sdi->status != SR_ST_ACTIVE)
@@ -882,6 +891,20 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi, void *cb_data)
 			return ret;
 		}
 	}
+
+	sr_dbg("Starting Acquisition");
+
+	/* Send header packet to the session bus. */
+	sr_dbg("Sending SR_DF_HEADER packet.");
+	packet.type = SR_DF_HEADER;
+	packet.payload = (uint8_t *)&header;
+	header.feed_version = 1;
+	gettimeofday(&header.starttime, NULL);
+
+	if ((ret = sr_session_send(sdi, &packet)) < 0) {
+		sr_err("Failed to send header packet.");
+		return ret;
+	}	
 
 	return SR_OK;
 }

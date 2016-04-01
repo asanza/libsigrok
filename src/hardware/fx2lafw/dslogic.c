@@ -243,7 +243,7 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 	if (devc->dslogic_external_clock)
 		v16 |= 1 << 1 ;
 	if(devc->dslogic_clock_edge)
-		v16 |= 1 << 2;
+		v16 |= 1 << 2 ;
 	if(devc->cur_samplerate == SR_MHZ(200))
 		v16 |= 1 << 5;
 	if(devc->cur_samplerate == SR_MHZ(400))
@@ -258,6 +258,41 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 	v32 = ceil(SR_MHZ(100) * 1.0 / devc->cur_samplerate);
 	WL32(&cfg.divider, v32);
 	WL32(&cfg.count, devc->limit_samples);
+
+	/* replace 0 with the number of trigger stages */
+	WL32(&cfg.trig_glb, 0);
+	v32 = cfg.count - cfg.trig_pos - 1;
+	WL32(&cfg.trig_adp, v32);
+	WL32(&cfg.trig_sda, 0);
+
+	/* following enables the simple trigger */
+	cfg.trig_mask0[0] = 0xFFFF;
+	cfg.trig_mask1[0] = 0xFFFF;
+	cfg.trig_value0[0] = 0;
+	cfg.trig_value1[0] = 0;
+	cfg.trig_edge0[0] = 0;
+	cfg.trig_edge1[0] = 0;
+	cfg.trig_count0[0] = 0;
+	cfg.trig_count1[0] = 0;
+	cfg.trig_logic0[0] = 2;
+	cfg.trig_logic1[0] = 2;
+	int i;
+    for (i = 1; i < DS_NUM_TRIGGER_STAGES; i++) {
+        cfg.trig_mask0[i] = 0xff;
+        cfg.trig_mask1[i] = 0xff;
+
+        cfg.trig_value0[i] = 0;
+        cfg.trig_value1[i] = 0;
+
+        cfg.trig_edge0[i] = 0;
+        cfg.trig_edge1[i] = 0;
+
+        cfg.trig_count0[i] = 0;
+        cfg.trig_count1[i] = 0;
+
+        cfg.trig_logic0[i] = 2;
+        cfg.trig_logic1[i] = 2;
+    }
 
 	WL32(&cfg.trig_pos, 50);
 	len = sizeof(struct dslogic_fpga_config);

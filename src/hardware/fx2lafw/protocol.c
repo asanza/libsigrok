@@ -397,6 +397,8 @@ SR_PRIV void LIBUSB_CALL fx2lafw_receive_transfer(struct libusb_transfer *transf
 	sdi = transfer->user_data;
 	devc = sdi->priv;
 
+	sr_dbg("Receive data");
+
 	/*
 	 * If acquisition has already ended, just free any queued up
 	 * transfer that come in.
