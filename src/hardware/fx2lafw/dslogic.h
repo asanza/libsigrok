@@ -21,6 +21,9 @@
 #ifndef LIBSIGROK_HARDWARE_FX2LAFW_DSLOGIC_H
 #define LIBSIGROK_HARDWARE_FX2LAFW_DSLOGIC_H
 
+#include <libsigrok/libsigrok.h>
+#include <stdint.h>
+
 /* Modified protocol commands & flags used by DSLogic */
 #define DS_CMD_GET_FW_VERSION		0xb0
 #define DS_CMD_GET_REVID_VERSION	0xb1
@@ -98,7 +101,7 @@ struct dslogic_fpga_config {
 	uint32_t sync;
 	uint16_t mode_header;
 	uint16_t mode;
-	
+
 	uint32_t divider_header;
 	uint32_t divider;
 	uint32_t count_header;
@@ -118,22 +121,22 @@ struct dslogic_fpga_config {
 	uint16_t trig_mask0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_mask1_header;
 	uint16_t trig_mask1[DS_NUM_TRIGGER_STAGES];
-	
+
 	uint32_t trig_value0_header;
 	uint16_t trig_value0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_value1_header;
 	uint16_t trig_value1[DS_NUM_TRIGGER_STAGES];
-	
+
 	uint32_t trig_edge0_header;
 	uint16_t trig_edge0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_edge1_header;
 	uint16_t trig_edge1[DS_NUM_TRIGGER_STAGES];
-	
+
 	uint32_t trig_count0_header;
 	uint32_t trig_count0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_count1_header;
 	uint32_t trig_count1[DS_NUM_TRIGGER_STAGES];
-	
+
 	uint32_t trig_logic0_header;
 	uint16_t trig_logic0[DS_NUM_TRIGGER_STAGES];
 	uint32_t trig_logic1_header;

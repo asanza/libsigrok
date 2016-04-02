@@ -1,0 +1,8 @@
+{
+  "execPath": "/usr/bin/gcc",
+  "gccDefaultCFlags": "-c -Wall",
+  "gccDefaultCppFlags": "-c -Wall",
+  "gccErrorLimit": 15,
+  "gccIncludePaths": ".,./include,./src,./src/hardware/fx2lafw,/usr/include/glib-2.0/,/usr/lib/x86_64-linux-gnu/glib-2.0/include/,/usr/include/libusb-1.0/",
+  "gccSuppressWarnings": true
+}

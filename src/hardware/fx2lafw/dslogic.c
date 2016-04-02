@@ -243,7 +243,7 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 	if (devc->dslogic_external_clock)
 		v16 |= 1 << 1 ;
 	if(devc->dslogic_clock_edge)
-		v16 |= 1 << 2 ;
+		v16 |= 1 << 2;
 	if(devc->cur_samplerate == SR_MHZ(200))
 		v16 |= 1 << 5;
 	if(devc->cur_samplerate == SR_MHZ(400))
@@ -260,6 +260,7 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 	WL32(&cfg.count, devc->limit_samples);
 
 	/* replace 0 with the number of trigger stages */
+	WL32(&cfg.trig_pos, devc->limit_samples/2);
 	WL32(&cfg.trig_glb, 0);
 	v32 = cfg.count - cfg.trig_pos - 1;
 	WL32(&cfg.trig_adp, v32);
@@ -294,7 +295,6 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
         cfg.trig_logic1[i] = 2;
     }
 
-	WL32(&cfg.trig_pos, 50);
 	len = sizeof(struct dslogic_fpga_config);
 	ret = libusb_bulk_transfer(usb->devhdl, 2 | LIBUSB_ENDPOINT_OUT,
 			(unsigned char *)&cfg, len, &transferred, USB_TIMEOUT);
