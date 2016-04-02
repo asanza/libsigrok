@@ -307,6 +307,7 @@ SR_PRIV struct dev_context *fx2lafw_dev_new(void)
 	devc->sample_wide = FALSE;
 	devc->dslogic_voltage_threshold = 0;
 	devc->dslogic_external_clock = FALSE;
+	devc->dslogic_rle = FALSE;
 	devc->stl = NULL;
 
 	return devc;

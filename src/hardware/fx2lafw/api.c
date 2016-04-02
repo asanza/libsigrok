@@ -858,8 +858,7 @@ static void LIBUSB_CALL dslogic_trigger_receive(struct libusb_transfer *transfer
 	}else if (transfer->status == LIBUSB_TRANSFER_COMPLETED
 		  && transfer->actual_length == sizeof(struct dslogic_trigger_pos)) {
 		tpos = (struct dslogic_trigger_pos*)transfer->buffer;
-		sr_dbg("Triggered: tpos real_pos %.8x ram_saddr %.8x", tpos->real_pos, tpos->ram_saddr);
-
+		sr_info("Triggered: tpos real_pos %.8x ram_saddr %.8x", tpos->real_pos, tpos->ram_saddr);
 		/* send trigger point */
 		if (devc->dslogic_mode == DS_OP_STREAM || tpos->remain_cnt < devc->limit_samples) {
 			if (devc->dslogic_mode != DS_OP_STREAM)
