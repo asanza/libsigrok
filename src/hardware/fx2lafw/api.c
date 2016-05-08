@@ -879,7 +879,7 @@ static void LIBUSB_CALL dslogic_trigger_receive(struct libusb_transfer *transfer
 	} else if (transfer->status == LIBUSB_TRANSFER_COMPLETED
 			&& transfer->actual_length == sizeof(struct dslogic_trigger_pos)) {
 		tpos = (struct dslogic_trigger_pos *)transfer->buffer;
-		sr_info("tpos real_pos %d ram_saddr %d", tpos->real_pos, tpos->ram_saddr);
+		sr_info("tpos real_pos %d ram_saddr %d cnt %d", tpos->real_pos, tpos->ram_saddr, tpos->remain_cnt);
 		devc->trigger_pos  = tpos->real_pos;
 		g_free(tpos);
 		start_transfers(sdi);
@@ -903,15 +903,6 @@ static int dslogic_trigger_request(const struct sr_dev_inst *sdi)
 
 	if ((ret = dslogic_fpga_configure(sdi)) != SR_OK)
 		return ret;
-
-	/* if this is a dslogic pro, set the voltage threshold */
-	if (!strcmp(devc->profile->model, "DSLogic Pro")){
-		if(devc->dslogic_voltage_threshold == DS_VOLTAGE_RANGE_18_33_V){
-			dslogic_set_vth(sdi, 1.4);
-		}else{
-			dslogic_set_vth(sdi, 3.3);
-		}
-	}
 
 	/* if this is a dslogic pro, set the voltage threshold */
 	if (!strcmp(devc->profile->model, "DSLogic Pro")){
