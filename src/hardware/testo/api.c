@@ -33,8 +33,8 @@ static const uint32_t scanopts[] = {
 static const uint32_t devopts[] = {
 	SR_CONF_MULTIMETER,
 	SR_CONF_CONTINUOUS,
-	SR_CONF_LIMIT_SAMPLES | SR_CONF_SET,
-	SR_CONF_LIMIT_MSEC | SR_CONF_SET,
+	SR_CONF_LIMIT_SAMPLES | SR_CONF_SET | SR_CONF_GET,
+	SR_CONF_LIMIT_MSEC | SR_CONF_SET | SR_CONF_GET,
 };
 
 static const uint8_t TESTO_x35_REQUEST[] = { 0x12, 0, 0, 0, 1, 1, 0x55, 0xd1, 0xb7 };
@@ -42,11 +42,6 @@ static const uint8_t TESTO_x35_REQUEST[] = { 0x12, 0, 0, 0, 1, 1, 0x55, 0xd1, 0x
 static const struct testo_model models[] = {
 	{ "435", 9, TESTO_x35_REQUEST },
 };
-
-static int init(struct sr_dev_driver *di, struct sr_context *sr_ctx)
-{
-	return std_init(sr_ctx, di, LOG_PREFIX);
-}
 
 static GSList *scan(struct sr_dev_driver *di, GSList *options)
 {
@@ -132,8 +127,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		sdi->connection_id = g_strdup(connection_id);
 		devc = g_malloc(sizeof(struct dev_context));
 		devc->model = &models[0];
-		devc->limit_msec = 0;
-		devc->limit_samples = 0;
+		sr_sw_limits_init(&devc->sw_limits);
 		sdi->priv = devc;
 		if (testo_probe_channels(sdi) != SR_OK)
 			continue;
@@ -151,27 +145,13 @@ static int dev_open(struct sr_dev_inst *sdi)
 	struct sr_dev_driver *di = sdi->driver;
 	struct drv_context *drvc = di->context;
 	struct sr_usb_dev_inst *usb;
-	libusb_device **devlist;
-	int ret, i;
-	char connection_id[64];
+	int ret;
 
 	usb = sdi->conn;
-	libusb_get_device_list(drvc->sr_ctx->libusb_ctx, &devlist);
-	for (i = 0; devlist[i]; i++) {
-		usb_get_port_path(devlist[i], connection_id, sizeof(connection_id));
-		if (strcmp(sdi->connection_id, connection_id))
-			continue;
-		if ((ret = libusb_open(devlist[i], &usb->devhdl))) {
-			sr_err("Failed to open device: %s.", libusb_error_name(ret));
-			return SR_ERR;
-		}
-		break;
-	}
-	libusb_free_device_list(devlist, 1);
-	if (!devlist[i]) {
-		sr_err("Device not found.");
-		return SR_ERR;
-	}
+
+	ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
+	if (ret != SR_OK)
+		return ret;
 
 	if (libusb_has_capability(LIBUSB_CAP_SUPPORTS_DETACH_KERNEL_DRIVER)) {
 		if (libusb_kernel_driver_active(usb->devhdl, 0) == 1) {
@@ -212,6 +192,7 @@ static int dev_close(struct sr_dev_inst *sdi)
 static int config_get(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
 		const struct sr_channel_group *cg)
 {
+	struct dev_context *devc = sdi->priv;
 	struct sr_usb_dev_inst *usb;
 	char str[128];
 
@@ -225,6 +206,9 @@ static int config_get(uint32_t key, GVariant **data, const struct sr_dev_inst *s
 		snprintf(str, 128, "%d.%d", usb->bus, usb->address);
 		*data = g_variant_new_string(str);
 		break;
+	case SR_CONF_LIMIT_MSEC:
+	case SR_CONF_LIMIT_SAMPLES:
+		return sr_sw_limits_config_get(&devc->sw_limits, key, data);
 	default:
 		return SR_ERR_NA;
 	}
@@ -235,31 +219,14 @@ static int config_get(uint32_t key, GVariant **data, const struct sr_dev_inst *s
 static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sdi,
 		const struct sr_channel_group *cg)
 {
-	struct dev_context *devc;
-	gint64 now;
-	int ret;
+	struct dev_context *devc = sdi->priv;
 
 	(void)cg;
 
 	if (sdi->status != SR_ST_ACTIVE)
 		return SR_ERR_DEV_CLOSED;
 
-	devc = sdi->priv;
-	ret = SR_OK;
-	switch (key) {
-	case SR_CONF_LIMIT_MSEC:
-		devc->limit_msec = g_variant_get_uint64(data);
-		now = g_get_monotonic_time() / 1000;
-		devc->end_time = now + devc->limit_msec;
-		break;
-	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	default:
-		ret = SR_ERR_NA;
-	}
-
-	return ret;
+	return sr_sw_limits_config_set(&devc->sw_limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -315,13 +282,13 @@ static void receive_data(struct sr_dev_inst *sdi, unsigned char *data, int len)
 	crc = crc16_mcrf4xx(0xffff, devc->reply, devc->reply_size - 2);
 	if (crc == RL16(&devc->reply[devc->reply_size - 2])) {
 		testo_receive_packet(sdi);
-		devc->num_samples++;
+		sr_sw_limits_update_samples_read(&devc->sw_limits, 1);
 	} else {
 		sr_dbg("Packet has invalid CRC.");
 	}
 
 	devc->reply_size = 0;
-	if (devc->limit_samples && devc->num_samples >= devc->limit_samples)
+	if (sr_sw_limits_check(&devc->sw_limits))
 		dev_acquisition_stop(sdi);
 	else
 		testo_request_packet(sdi);
@@ -374,7 +341,6 @@ static int handle_events(int fd, int revents, void *cb_data)
 	struct drv_context *drvc;
 	struct sr_dev_inst *sdi;
 	struct timeval tv;
-	gint64 now;
 
 	(void)fd;
 	(void)revents;
@@ -384,11 +350,8 @@ static int handle_events(int fd, int revents, void *cb_data)
 	di = sdi->driver;
 	drvc = di->context;
 
-	if (devc->limit_msec) {
-		now = g_get_monotonic_time() / 1000;
-		if (now > devc->end_time)
-			dev_acquisition_stop(sdi);
-	}
+	if (sr_sw_limits_check(&devc->sw_limits))
+		dev_acquisition_stop(sdi);
 
 	if (sdi->status == SR_ST_STOPPING) {
 		usb_source_remove(sdi->session, drvc->sr_ctx);
@@ -420,8 +383,6 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi)
 
 	devc = sdi->priv;
 	usb = sdi->conn;
-	devc->end_time = 0;
-	devc->num_samples = 0;
 	devc->reply_size = 0;
 
 	std_session_send_df_header(sdi, LOG_PREFIX);
@@ -448,6 +409,8 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi)
 	}
 	devc->reply_size = 0;
 
+	sr_sw_limits_acquisition_start(&devc->sw_limits);
+
 	return SR_OK;
 }
 
@@ -465,7 +428,7 @@ SR_PRIV struct sr_dev_driver testo_driver_info = {
 	.name = "testo",
 	.longname = "Testo",
 	.api_version = 1,
-	.init = init,
+	.init = std_init,
 	.cleanup = std_cleanup,
 	.scan = scan,
 	.dev_list = std_dev_list,

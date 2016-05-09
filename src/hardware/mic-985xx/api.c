@@ -57,11 +57,6 @@ SR_PRIV const struct mic_dev_info mic_devs[] = {
 	},
 };
 
-static int init(struct sr_context *sr_ctx, int idx)
-{
-	return std_init(sr_ctx, mic_devs[idx].di, LOG_PREFIX);
-}
-
 static GSList *mic_scan(const char *conn, const char *serialcomm, int idx)
 {
 	struct sr_dev_inst *sdi;
@@ -90,6 +85,7 @@ static GSList *mic_scan(const char *conn, const char *serialcomm, int idx)
 	sdi->vendor = g_strdup(mic_devs[idx].vendor);
 	sdi->model = g_strdup(mic_devs[idx].device);
 	devc = g_malloc0(sizeof(struct dev_context));
+	sr_sw_limits_init(&devc->limits);
 	sdi->inst_type = SR_INST_SERIAL;
 	sdi->conn = serial;
 	sdi->priv = devc;
@@ -152,18 +148,7 @@ static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sd
 
 	devc = sdi->priv;
 
-	switch (key) {
-	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	case SR_CONF_LIMIT_MSEC:
-		devc->limit_msec = g_variant_get_uint64(data);
-		break;
-	default:
-		return SR_ERR_NA;
-	}
-
-	return SR_OK;
+	return sr_sw_limits_config_set(&devc->limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -206,9 +191,8 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi, int idx)
 		return SR_ERR_DEV_CLOSED;
 
 	devc = sdi->priv;
-	devc->num_samples = 0;
-	devc->starttime = g_get_monotonic_time();
 
+	sr_sw_limits_acquisition_start(&devc->limits);
 	std_session_send_df_header(sdi, LOG_PREFIX);
 
 	/* Poll every 100ms, or whenever some data comes in. */
@@ -226,9 +210,6 @@ static int dev_acquisition_stop(struct sr_dev_inst *sdi)
 }
 
 /* Driver-specific API function wrappers */
-#define HW_INIT(X) \
-static int init_##X(struct sr_dev_driver *di, struct sr_context *sr_ctx) { \
-	(void)di; return init(sr_ctx, X); }
 #define HW_SCAN(X) \
 static GSList *scan_##X(struct sr_dev_driver *di, GSList *options) { \
 	(void)di; return scan(options, X); }
@@ -242,7 +223,6 @@ static int dev_acquisition_start_##X(const struct sr_dev_inst *sdi \
 
 /* Driver structs and API function wrappers */
 #define DRV(ID, ID_UPPER, NAME, LONGNAME) \
-HW_INIT(ID_UPPER) \
 HW_SCAN(ID_UPPER) \
 HW_CONFIG_LIST(ID_UPPER) \
 HW_DEV_ACQUISITION_START(ID_UPPER) \
@@ -250,7 +230,7 @@ SR_PRIV struct sr_dev_driver ID##_driver_info = { \
 	.name = NAME, \
 	.longname = LONGNAME, \
 	.api_version = 1, \
-	.init = init_##ID_UPPER, \
+	.init = std_init, \
 	.cleanup = std_cleanup, \
 	.scan = scan_##ID_UPPER, \
 	.dev_list = std_dev_list, \

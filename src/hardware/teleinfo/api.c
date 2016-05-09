@@ -38,11 +38,6 @@ static const uint32_t devopts[] = {
 
 SR_PRIV struct sr_dev_driver teleinfo_driver_info;
 
-static int init(struct sr_dev_driver *di, struct sr_context *sr_ctx)
-{
-	return std_init(sr_ctx, di, LOG_PREFIX);
-}
-
 static GSList *scan(struct sr_dev_driver *di, GSList *options)
 {
 	struct drv_context *drvc;
@@ -148,18 +143,7 @@ static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sd
 		return SR_ERR_BUG;
 	}
 
-	switch (key) {
-	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	case SR_CONF_LIMIT_MSEC:
-		devc->limit_msec = g_variant_get_uint64(data);
-		break;
-	default:
-		return SR_ERR_NA;
-	}
-
-	return SR_OK;
+	return sr_sw_limits_config_set(&devc->sw_limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -194,13 +178,7 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi)
 
 	devc = sdi->priv;
 
-	/*
-	 * Reset the number of samples to take. If we've already collected our
-	 * quota, but we start a new session, and don't reset this, we'll just
-	 * quit without acquiring any new samples.
-	 */
-	devc->num_samples = 0;
-	devc->start_time = g_get_monotonic_time();
+	sr_sw_limits_acquisition_start(&devc->sw_limits);
 
 	std_session_send_df_header(sdi, LOG_PREFIX);
 
@@ -221,7 +199,7 @@ SR_PRIV struct sr_dev_driver teleinfo_driver_info = {
 	.name = "teleinfo",
 	.longname = "Teleinfo",
 	.api_version = 1,
-	.init = init,
+	.init = std_init,
 	.cleanup = std_cleanup,
 	.scan = scan,
 	.dev_list = std_dev_list,

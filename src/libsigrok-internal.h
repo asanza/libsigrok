@@ -401,6 +401,18 @@ struct sr_input_module {
 	 */
 	int (*end) (struct sr_input *in);
 
+        /**
+         * Reset the input module's input handling structures.
+         *
+         * Causes the input module to reset its internal state so that we can
+         * re-send the input data from the beginning without having to
+         * re-create the entire input module.
+         *
+         * @retval SR_OK Success.
+         * @retval other Negative error code.
+         */
+	int (*reset) (struct sr_input *in);
+
 	/**
 	 * This function is called after the caller is finished using
 	 * the input module, and can be used to free any internal
@@ -847,8 +859,7 @@ SR_PRIV int sr_analog_init(struct sr_datafeed_analog *analog,
 typedef int (*dev_close_callback)(struct sr_dev_inst *sdi);
 typedef void (*std_dev_clear_callback)(void *priv);
 
-SR_PRIV int std_init(struct sr_context *sr_ctx, struct sr_dev_driver *di,
-		const char *prefix);
+SR_PRIV int std_init(struct sr_dev_driver *di, struct sr_context *sr_ctx);
 SR_PRIV int std_cleanup(const struct sr_dev_driver *di);
 #ifdef HAVE_LIBSERIALPORT
 SR_PRIV int std_serial_dev_open(struct sr_dev_inst *sdi);
@@ -1257,5 +1268,24 @@ struct kern_info {
 SR_PRIV gboolean sr_kern_packet_valid(const uint8_t *buf);
 SR_PRIV int sr_kern_parse(const uint8_t *buf, float *floatval,
 		struct sr_datafeed_analog_old *analog, void *info);
+
+/*--- sw_limits.c -----------------------------------------------------------*/
+
+struct sr_sw_limits {
+	uint64_t limit_samples;
+	uint64_t limit_msec;
+	uint64_t samples_read;
+	uint64_t start_time;
+};
+
+SR_PRIV int sr_sw_limits_config_get(struct sr_sw_limits *limits, uint32_t key,
+	GVariant **data);
+SR_PRIV int sr_sw_limits_config_set(struct sr_sw_limits *limits, uint32_t key,
+	GVariant *data);
+SR_PRIV void sr_sw_limits_acquisition_start(struct sr_sw_limits *limits);
+SR_PRIV gboolean sr_sw_limits_check(struct sr_sw_limits *limits);
+SR_PRIV void sr_sw_limits_update_samples_read(struct sr_sw_limits *limits,
+	uint64_t samples_read);
+SR_PRIV void sr_sw_limits_init(struct sr_sw_limits *limits);
 
 #endif

@@ -34,8 +34,8 @@ static const uint32_t scanopts[] = {
 static const uint32_t devopts[] = {
 	SR_CONF_MULTIMETER,
 	SR_CONF_CONTINUOUS,
-	SR_CONF_LIMIT_SAMPLES | SR_CONF_SET,
-	SR_CONF_LIMIT_MSEC | SR_CONF_SET,
+	SR_CONF_LIMIT_SAMPLES | SR_CONF_SET | SR_CONF_GET,
+	SR_CONF_LIMIT_MSEC | SR_CONF_SET | SR_CONF_GET,
 };
 
 /*
@@ -45,11 +45,6 @@ static const uint32_t devopts[] = {
  * supports 19200, and setting an unsupported baudrate will result in the
  * default of 2400 being used (which will not work with this DMM, of course).
  */
-
-static int init(struct sr_dev_driver *di, struct sr_context *sr_ctx)
-{
-	return std_init(sr_ctx, di, LOG_PREFIX);
-}
 
 static GSList *scan(struct sr_dev_driver *di, GSList *options)
 {
@@ -138,18 +133,7 @@ static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sd
 
 	devc = sdi->priv;
 
-	switch (key) {
-	case SR_CONF_LIMIT_MSEC:
-		devc->limit_msec = g_variant_get_uint64(data);
-		break;
-	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	default:
-		return SR_ERR_NA;
-	}
-
-	return SR_OK;
+	return sr_sw_limits_config_set(&devc->limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -179,7 +163,8 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi)
 	struct dev_context *devc;
 
 	devc = sdi->priv;
-	devc->starttime = g_get_monotonic_time();
+
+	sr_sw_limits_acquisition_start(&devc->limits);
 
 	std_session_send_df_header(sdi, LOG_PREFIX);
 
@@ -205,7 +190,7 @@ static int dev_acquisition_stop(struct sr_dev_inst *sdi)
 			.name = ID, \
 			.longname = VENDOR " " MODEL, \
 			.api_version = 1, \
-			.init = init, \
+			.init = std_init, \
 			.cleanup = std_cleanup, \
 			.scan = scan, \
 			.dev_list = std_dev_list, \

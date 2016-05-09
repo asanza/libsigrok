@@ -56,11 +56,6 @@ SR_PRIV const struct center_dev_info center_devs[] = {
 	},
 };
 
-static int init(struct sr_context *sr_ctx, int idx)
-{
-	return std_init(sr_ctx, center_devs[idx].di, LOG_PREFIX);
-}
-
 static GSList *center_scan(const char *conn, const char *serialcomm, int idx)
 {
 	int i;
@@ -146,22 +141,7 @@ static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sd
 
 	devc = sdi->priv;
 
-	switch (key) {
-	case SR_CONF_LIMIT_SAMPLES:
-		if (g_variant_get_uint64(data) == 0)
-			return SR_ERR_ARG;
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	case SR_CONF_LIMIT_MSEC:
-		if (g_variant_get_uint64(data) == 0)
-			return SR_ERR_ARG;
-		devc->limit_msec = g_variant_get_uint64(data);
-		break;
-	default:
-		return SR_ERR_NA;
-	}
-
-	return SR_OK;
+	return sr_sw_limits_config_set(&devc->sw_limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -198,8 +178,8 @@ static int dev_acquisition_start(const struct sr_dev_inst *sdi, int idx)
 		return SR_ERR_DEV_CLOSED;
 
 	devc = sdi->priv;
-	devc->num_samples = 0;
-	devc->starttime = g_get_monotonic_time();
+
+	sr_sw_limits_acquisition_start(&devc->sw_limits);
 
 	std_session_send_df_header(sdi, LOG_PREFIX);
 
@@ -218,9 +198,6 @@ static int dev_acquisition_stop(struct sr_dev_inst *sdi)
 }
 
 /* Driver-specific API function wrappers */
-#define HW_INIT(X) \
-static int init_##X(struct sr_dev_driver *d, \
-	struct sr_context *sr_ctx) { (void)d; return init(sr_ctx, X); }
 #define HW_SCAN(X) \
 static GSList *scan_##X(struct sr_dev_driver *d, GSList *options) { \
 	(void)d; return scan(options, X); }
@@ -230,14 +207,13 @@ static int dev_acquisition_start_##X(const struct sr_dev_inst *sdi \
 
 /* Driver structs and API function wrappers */
 #define DRV(ID, ID_UPPER, NAME, LONGNAME) \
-HW_INIT(ID_UPPER) \
 HW_SCAN(ID_UPPER) \
 HW_DEV_ACQUISITION_START(ID_UPPER) \
 SR_PRIV struct sr_dev_driver ID##_driver_info = { \
 	.name = NAME, \
 	.longname = LONGNAME, \
 	.api_version = 1, \
-	.init = init_##ID_UPPER, \
+	.init = std_init, \
 	.cleanup = std_cleanup, \
 	.scan = scan_##ID_UPPER, \
 	.dev_list = std_dev_list, \

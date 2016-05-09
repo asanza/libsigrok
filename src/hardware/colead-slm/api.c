@@ -44,11 +44,6 @@ static const uint32_t devopts[] = {
 
 SR_PRIV struct sr_dev_driver colead_slm_driver_info;
 
-static int init(struct sr_dev_driver *di, struct sr_context *sr_ctx)
-{
-	return std_init(sr_ctx, di, LOG_PREFIX);
-}
-
 static GSList *scan(struct sr_dev_driver *di, GSList *options)
 {
 	struct drv_context *drvc;
@@ -85,6 +80,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	sdi->vendor = g_strdup("Colead");
 	sdi->model = g_strdup("SL-5868P");
 	devc = g_malloc0(sizeof(struct dev_context));
+	sr_sw_limits_init(&devc->limits);
 	sdi->conn = sr_serial_dev_inst_new(conn, serialcomm);
 	sdi->inst_type = SR_INST_SERIAL;
 	sdi->priv = devc;
@@ -111,19 +107,7 @@ static int config_set(uint32_t key, GVariant *data, const struct sr_dev_inst *sd
 		return SR_ERR_BUG;
 	}
 
-	switch (key) {
-	case SR_CONF_LIMIT_MSEC:
-		/* TODO: not yet implemented */
-		devc->limit_msec = g_variant_get_uint64(data);;
-		break;
-	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
-		break;
-	default:
-		return SR_ERR_NA;
-	}
-
-	return SR_OK;
+	return sr_sw_limits_config_set(&devc->limits, key, data);
 }
 
 static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *sdi,
@@ -150,11 +134,13 @@ static int config_list(uint32_t key, GVariant **data, const struct sr_dev_inst *
 
 static int dev_acquisition_start(const struct sr_dev_inst *sdi)
 {
+	struct dev_context *devc = sdi->priv;
 	struct sr_serial_dev_inst *serial;
 
 	if (sdi->status != SR_ST_ACTIVE)
 		return SR_ERR_DEV_CLOSED;
 
+	sr_sw_limits_acquisition_start(&devc->limits);
 	std_session_send_df_header(sdi, LOG_PREFIX);
 
 	/* Poll every 150ms, or whenever some data comes in. */
@@ -175,7 +161,7 @@ SR_PRIV struct sr_dev_driver colead_slm_driver_info = {
 	.name = "colead-slm",
 	.longname = "Colead SLM",
 	.api_version = 1,
-	.init = init,
+	.init = std_init,
 	.cleanup = std_cleanup,
 	.scan = scan,
 	.dev_list = std_dev_list,
